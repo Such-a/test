@@ -1,20 +1,46 @@
 pipeline {
     agent any
 
+    environment {
+        ANSIBLE_HOSTS = "inventory.ini"
+        PLAYBOOK = "nginx-playbook.yml"
+    }
+
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 git 'https://your-git-repo-url.git'
             }
         }
 
-        stage('Run Ansible Playbook') {
+        stage('Install Ansible') {
             steps {
                 sh '''
-                ansible-playbook -i inventory.ini nginx-playbook.yml
+                sudo apt update -y
+                sudo apt install -y ansible
+                '''
+            }
+        }
+
+        stage('Deploy Nginx with Ansible') {
+            steps {
+                sh '''
+                ansible-playbook -i $ANSIBLE_HOSTS $PLAYBOOK
                 '''
             }
         }
     }
-}
 
+    post {
+        failure {
+            echo "Deployment failed! Rolling back..."
+            sh '''
+            ansible-playbook -i $ANSIBLE_HOSTS rollback.yml
+            '''
+        }
+
+        success {
+            echo "Deployment succeeded!"
+        }
+    }
+}
