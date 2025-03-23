@@ -1,9 +1,9 @@
 ---
-- name: Install and start Nginx
-  hosts: web_servers
+- name: Install and Start Nginx
+  hosts: all
   become: yes
   tasks:
-    - name: Install Nginx
+    - name: Install Nginx (Debian)
       apt:
         name: nginx
         state: present
@@ -15,7 +15,7 @@
         state: present
       when: ansible_os_family == "RedHat"
 
-    - name: Start and enable Nginx
+    - name: Start and Enable Nginx
       service:
         name: nginx
         state: started
