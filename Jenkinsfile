@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     environment {
-        ANSIBLE_HOSTS = "inventory.ini"
-        PLAYBOOK = "nginx-playbook.yml"
+        REMOTE_HOST = "your_server_ip"
+        REMOTE_USER = "your_user"
+        SSH_KEY = "~/.ssh/id_rsa"
     }
 
     stages {
@@ -25,7 +26,7 @@ pipeline {
         stage('Deploy Nginx with Ansible') {
             steps {
                 sh '''
-                ansible-playbook -i $ANSIBLE_HOSTS $PLAYBOOK
+                ansible-playbook -u $REMOTE_USER -i $REMOTE_HOST, --private-key=$SSH_KEY nginx-playbook.yml
                 '''
             }
         }
@@ -35,7 +36,7 @@ pipeline {
         failure {
             echo "Deployment failed! Rolling back..."
             sh '''
-            ansible-playbook -i $ANSIBLE_HOSTS rollback.yml
+            ansible-playbook -u $REMOTE_USER -i $REMOTE_HOST, --private-key=$SSH_KEY rollback.yml
             '''
         }
 
