@@ -1,22 +1,24 @@
 ---
 - name: Rollback Nginx Deployment
-  hosts: web_servers
+  hosts: all
   become: yes
   tasks:
-    - name: Stop Nginx
-      service:
-        name: nginx
-        state: stopped
-      ignore_errors: yes
+    - name: Stop and Remove Nginx
+      block:
+        - name: Stop Nginx
+          service:
+            name: nginx
+            state: stopped
+          ignore_errors: yes
 
-    - name: Remove Nginx package
-      apt:
-        name: nginx
-        state: absent
-      when: ansible_os_family == "Debian"
+        - name: Uninstall Nginx (Debian)
+          apt:
+            name: nginx
+            state: absent
+          when: ansible_os_family == "Debian"
 
-    - name: Remove Nginx (RedHat)
-      yum:
-        name: nginx
-        state: absent
-      when: ansible_os_family == "RedHat"
+        - name: Uninstall Nginx (RedHat)
+          yum:
+            name: nginx
+            state: absent
+          when: ansible_os_family == "RedHat"
