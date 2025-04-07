@@ -6,7 +6,7 @@ node {
       }     
       stage('Build image') {         
        
-            app = docker.build("eagle/test")    
+            app = docker.build("giorgi1938/apolon11")    
        }     
       stage('Test image') {           
             app.inside {            
