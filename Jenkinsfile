@@ -1,23 +1,94 @@
-node {    
-      def app     
-      stage('Clone repository') {               
-             
-            checkout scm    
-      }     
-      stage('Build image') {         
-       
-            app = docker.build("giorgi1938/apolon11")    
-       }     
-      stage('Test image') {           
-            app.inside {            
-             
-             sh 'echo "Tests passed"'        
-            }    
-        }     
-       stage('Push image') {
-                                                  docker.withRegistry('https://registry.hub.docker.com', '31969202-ed2b-49ae-9fd5-28e6e33007ef') {            
-       app.push("${env.BUILD_NUMBER}")            
-       app.push("latest")        
-              }    
-           }
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "***************"
+        REGION = "us-east-1"
+        KEY_NAME = "jenkins-key"
+        SECURITY_GROUP = "sg-**************"
+        INSTANCE_TYPE = "t2.micro"
+        AMI_ID = "ami-0c398cb65a93047f2"
+    }
+
+    stages {
+
+        stage('Clone GitHub Repository') {
+            steps {
+                git url: 'https://github.com/Such-a/CloudFormation_2025_such_a.git', branch: 'main'
+            }
         }
+
+        stage('Build Docker Image') {
+            steps {
+                bat "docker build -t %IMAGE_NAME% ."
+            }
+        }
+
+        stage('Test Docker Image') {
+            steps {
+                bat "docker run --rm %IMAGE_NAME% python3 -c \"print('Tests passed')\""
+            }
+        }
+
+        stage('Push Docker Image to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: '*************************',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    bat """
+                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+                    docker tag %IMAGE_NAME% %IMAGE_NAME%:latest
+                    docker push %IMAGE_NAME%:latest
+                    """
+                }
+            }
+        }
+        
+
+        
+        stage('Launch EC2 Instance and Deploy Docker Container') {
+            steps {
+                withAWS(credentials: '**************************', region: "${REGION}") {
+                    bat """
+                    REM Launch EC2 instance
+                    for /f "delims=" %%i in ('aws ec2 run-instances ^
+                        --image-id %AMI_ID% ^
+                        --count 1 ^
+                        --instance-type %INSTANCE_TYPE% ^
+                        --key-name %KEY_NAME% ^
+                        --security-group-ids %SECURITY_GROUP% ^
+                        --region %REGION% ^
+                        --query "Instances[0].InstanceId" ^
+                        --output text') do set INSTANCE_ID=%%i
+
+                    echo Created instance: %INSTANCE_ID%
+
+                    REM Wait until running
+                    aws ec2 wait instance-running --instance-ids %INSTANCE_ID% --region %REGION%
+
+                    REM Get public IP
+                    for /f "delims=" %%i in ('aws ec2 describe-instances ^
+                        --instance-ids %INSTANCE_ID% ^
+                        --region %REGION% ^
+                        --query "Reservations[0].Instances[0].PublicIpAddress" ^
+                        --output text') do set PUBLIC_IP=%%i
+
+                    echo Public IP: %PUBLIC_IP%
+
+                    ssh -o StrictHostKeyChecking=no -i "C:\\Users\\ASUS\\Downloads\\jenkins-key.pem" ubuntu@%PUBLIC_IP% ^
+                     "sudo apt update -y && sudo apt install -y docker.io && sudo systemctl start docker && sudo docker pull %IMAGE_NAME%:latest && sudo docker run -d --name apolon11 -p 80:80 %IMAGE_NAME%:latest"
+
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            bat "docker logout"
+        }
+    }
+}
